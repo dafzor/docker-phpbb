@@ -1,29 +1,34 @@
-FROM alpine:3.9
+FROM debian:trixie-slim
 
 LABEL maintainer="selim013@gmail.com"
 
-RUN apk add --no-cache curl \
-    imagemagick \
-    apache2 \
-    php7 \
-    php7-apache2 \
-    php7-ctype \
-    php7-curl \
-    php7-dom \
-    php7-ftp \
-    php7-gd \
-    php7-iconv \
-    php7-json \
-    php7-mysqli \
-    php7-opcache \
-    php7-openssl \
-    php7-pgsql \
-    php7-sqlite3 \
-    php7-tokenizer \
-    php7-xml \
-    php7-zlib \
-    php7-zip \
-    su-exec
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && curl -fsSLo /tmp/debsuryorg-archive-keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb \
+    && dpkg -i /tmp/debsuryorg-archive-keyring.deb \
+    && printf '%s\n' \
+        'deb [signed-by=/usr/share/keyrings/debsuryorg-archive-keyring.gpg] https://packages.sury.org/php/ trixie main' \
+        > /etc/apt/sources.list.d/php.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        apache2 \
+        bzip2 \
+        ca-certificates \
+        curl \
+        gosu \
+        imagemagick \
+        libapache2-mod-php7.4 \
+        netcat-openbsd \
+        php7.4-cli \
+        php7.4-curl \
+        php7.4-gd \
+        php7.4-mysql \
+        php7.4-opcache \
+        php7.4-pgsql \
+        php7.4-sqlite3 \
+        php7.4-xml \
+        php7.4-zip \
+    && rm -rf /var/lib/apt/lists/* /tmp/debsuryorg-archive-keyring.deb
 
 ### phpBB
 ENV PHPBB_VERSION 3.2.11
@@ -43,18 +48,23 @@ COPY phpbb/config.php /phpbb/www
 
 ### Server
 RUN mkdir -p /run/apache2 /phpbb/opcache \
-    && chown apache:apache /run/apache2 /phpbb/opcache
+    && chown www-data:www-data /run/apache2 /phpbb/opcache
 
-COPY apache2/httpd.conf /etc/apache2/
-COPY apache2/conf.d/* /etc/apache2/conf.d/
+COPY apache2/httpd.conf /etc/apache2/sites-available/phpbb.conf
+COPY apache2/conf.d/* /etc/apache2/conf-available/
+RUN a2enmod rewrite \
+    && a2dissite 000-default \
+    && a2ensite phpbb \
+    && a2enconf mpm
 
-COPY php/php.ini /etc/php7/
-COPY php/php-cli.ini /etc/php7/
-COPY php/conf.d/* /etc/php7/conf.d/
+COPY php/php.ini /etc/php/7.4/apache2/php.ini
+COPY php/php-cli.ini /etc/php/7.4/cli/php.ini
+COPY php/conf.d/* /etc/php/7.4/apache2/conf.d/
+COPY php/conf.d/* /etc/php/7.4/cli/conf.d/
 
 COPY start.sh /usr/local/bin/
 
-RUN chown -R apache:apache /phpbb
+RUN chown -R www-data:www-data /phpbb
 WORKDIR /phpbb/www
 
 #VOLUME /phpbb/sqlite
